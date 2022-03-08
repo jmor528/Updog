@@ -1,33 +1,37 @@
-import models from '../database/models'
-import * as crypto from 'crypto'
+const jwt = require('jsonwebtoken');
 
 export class Authentication {
 
-    static generateAuthToken(username, password) {
+    //TODO: in ../config/config.js, readFileSync(file with privateKey) ?
+    static privateKey() {
+        return 'PRIVATE_KEY';
+    }
+
+    static generateAuthToken(user) {
         try {
-            const hashInput = username + password;
-            const hash = crypto.createHash('sha256');
-            hash.update(hashInput);
-            const authToken = hash.digest('hex');
+            const authToken = jwt.sign({"data": JSON.stringify(user)}, this.privateKey(), { 
+                expiresIn: '1d',
+                algorithm: 'HS256'
+            });
             return authToken;
         } catch (error) {
-            throw new Error("Unexpected error generating auth token\n" + error)
+            throw error
         }
     }
 
-    static async extractUser(authToken) {
-        // const users = await models.users.findAll();
-        // for (let user in users) {
-        //     if (authToken === this.generateAuthToken(user)) {
-        //         return user;
-        //     }
-        // }
-        /** Instead, find by authToken field */
+    static extractUser(authToken) {
         try {
-            const user =  await models.users.findOne({ where: { authToken: authToken } });
-            return user;
+            // sent by frontend as 'Bearer <token>'
+            if (authToken.startsWith("Bearer ")) {
+                const splitToken = authToken.split(" ");
+                const decoded = jwt.verify(splitToken[1], this.privateKey());
+                return JSON.parse(decoded.data);
+            } else {
+                throw new Error("Authorization header was not Bearer")
+            }
+            
         } catch (error) {
-            throw new Error("Could not find user from this auth token\n" + error)
+            throw error
         }
     }
 }

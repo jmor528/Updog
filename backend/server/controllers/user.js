@@ -8,10 +8,9 @@ export const addUser = async (req, res) => {
     console.log('🚀 ~ file: user.js ~ line 6 ~ addUser ~ body', body);
 
     const createUser = await models.users.create({
-      firstName: body.firstName,
-      lastName: body.lastName,
+      username: body.username,
       email: body.email,
-      age: body.age
+      password: body.password
     });
 
     res.status(201).send(createUser);
@@ -20,25 +19,29 @@ export const addUser = async (req, res) => {
   }
 };
 
-export const getUsers = async (req, res) => {
-  try {
-    const users = await models.users.findAll();
-    res.status(200).send(users);
-  } catch (error) {
-    res.status(500).send(error);
-  }
-};
-
 export const getUsersById = async (req, res) => {
   try {
-    // const { params } = req;
-    // const user = await models.users.findByPk(params.id);
-    /** Instead of the above commented code, should use authToken
-     * provided in the request header
-     */
-    const authToken = req.get('authToken');
-    const user = await Authentication.extractUser(authToken);
-    res.status(200).send(user);
+    const { params } = req;
+    const user = await models.users.findByPk(params.id);
+    const authToken = req.get('Authorization');
+
+    if (!authToken) {
+      res.status(400).send({
+        "Error message": "Auth token not provided"
+      })
+    } 
+
+    const decodedUser = Authentication.extractUser(authToken);
+
+    if (!decodedUser.id) {
+      res.status(401).send({
+        "Error message": "Auth token invalid"
+      })
+
+    } else {
+      res.status(200).send(user);
+    }
+    
   } catch (error) {
     res.status(500).send({"Error message": error.toString()});
   }
@@ -47,18 +50,21 @@ export const getUsersById = async (req, res) => {
 export const authenticateUser = async (req, res) => {
   try {
     const { body } = req;
-    const username = body.firstName;
-    const password = body.lastName; //TODO: use password
-    const authToken = Authentication.generateAuthToken(username, password);
-    const setToken = await models.users.update(
-      { authToken: authToken },
-      { where: { id: body.id } }
-    );
-    res.status(200).send({
-      "message": "Authentication successful",
-      "authToken": authToken
-    });
-    // .cookie('authToken', 'test', {maxAge: 900000});
+    const user = await models.users.findByPk(body.id);
+
+    if (user.id) {
+      const authToken = Authentication.generateAuthToken(user);
+      res.status(200).send({
+        "message": "Authentication successful",
+        "authToken": authToken
+      });
+
+    } else {
+      res.status(404).send({
+        "Error message": "Authentication failed, couldn't find user"
+      })
+    }
+    
   } catch (error) {
     res.status(500).send({"Error message": error.toString()})
   }
